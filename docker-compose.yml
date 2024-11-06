@@ -1,0 +1,189 @@
+version: '2'
+
+services:
+  datastore:
+    build: .
+    container_name: datastore
+    volumes:
+      - /:/host
+      - /share/Media:/data
+      - /share/Container/docker-htpc-suite/downloads:/downloads
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      - TZ=America/Los_Angeles
+      - PUID=0
+      - PGID=0
+    restart: always
+
+  dnsgen:
+    image: jderusse/dns-gen:latest
+    container_name: dnsgen
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    volumes_from:
+      - datastore
+    ports:
+      - 192.168.50.61:53:53/udp
+    environment:
+      - TZ=America/Los_Angeles
+      - EDGE=1
+      - PUID=0
+      - PGID=0
+    dns:
+      - 192.168.50.1
+      - 8.8.8.8
+    restart: always
+
+  sabnzbd:
+    image: lscr.io/linuxserver/sabnzbd
+    container_name: sabnzbd
+    environment:
+      - TZ=America/Los_Angeles
+      - EDGE=1
+      - DOMAIN_NAME=sabnzbd.localhost
+      - VIRTUAL_HOST=sabnzbd.localhost
+      - LETSENCRYPT_HOST=sabnzbd.localhost
+      - LETSENCRYPT_EMAIL=youremail@localhost
+      - VIRTUAL_PORT=8080
+      - PUID=0
+      - PGID=0
+    volumes:
+      - ./sabnzbd:/config
+    volumes_from:
+      - datastore
+    ports:
+      - 8082:8082
+    dns:
+      - 172.29.0.3
+      - 192.168.50.1
+    links:
+      - dnsgen
+    restart: always
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr
+    container_name: sonarr
+    volumes:
+      - ./sonarr:/config
+    volumes_from:
+      - datastore
+    ports:
+      - 8989:8989
+    environment:
+      - TZ=America/Los_Angeles
+      - EDGE=1
+      - DOMAIN_NAME=sonarr.localhost
+      - VIRTUAL_HOST=sonarr.localhost
+      - LETSENCRYPT_HOST=sonarr.localhost
+      - LETSENCRYPT_EMAIL=youremail@localhost
+      - PUID=0
+      - PGID=0
+    dns:
+      - 172.29.0.3
+      - 192.168.50.1
+    links:
+      - dnsgen
+      - sabnzbd
+    restart: always
+
+  radarr:
+    image: lscr.io/linuxserver/radarr
+    container_name: radarr
+    volumes:
+      - ./radarr:/config
+      - /share/Media/Movies:/movies
+    volumes_from:
+      - datastore
+    ports:
+      - 7878:7878
+    environment:
+      - TZ=America/Los_Angeles
+      - EDGE=1
+      - DOMAIN_NAME=couchpotato.euterpe
+      - VIRTUAL_HOST=couchpotato.euterpe
+      - PUID=0
+      - PGID=0
+    dns:
+      - 172.29.0.3
+      - 192.168.50.1
+    links:
+      - dnsgen
+      - sabnzbd
+    restart: always
+
+    # jellyfin:
+    #     image: jellyfin/jellyfin:latest
+    #     volumes:
+    #         - /share/Media:/media
+    #         - ./jellyfin/config:/config
+    #         - ./jellyfin/cache:/cache
+    #     volumes_from:
+    #         - datastore
+    #     ports:
+    #         - "8096:8096"
+    #         - "8920:8920"
+    #     environment:
+    #         - TZ=America/Los_Angeles
+    #         - EDGE=1
+    #         - DOMAIN_NAME=jellyfin.localhost
+    #         - VIRTUAL_HOST=jellyfin.localhost
+    #         - PUID=1000
+    #         - PGID=100
+    #     devices:
+    #         - /dev/dri/renderD128:/dev/dri/renderD128
+    #     privileged: true
+    #     restart: always
+
+    # plex:
+    #     image: linuxserver/plex:latest
+    #     container_name: plex
+    #     # network_mode: host
+    #     environment:
+    #         - TZ=America/Los_Angeles
+    #         - EDGE=1
+    #         # - DOMAIN_NAME=plex.localhost
+    #         # - VIRTUAL_HOST=plex.localhost
+    #         - PUID=1000
+    #         - PGID=1000
+    #         - VERSION=docker
+    #     dns:
+    #         - 172.29.0.3
+    #         - 10.0.0.1
+    #     volumes:
+    #         - /share/Container/plex:/config
+    #     volumes_from:
+    #         - datastore
+    #     ports:
+    #         - 32400:32400
+    #         - 32400:32400/udp
+    #         - 32469:32469
+    #         - 32469:32469/udp
+    #         #- 5353:5353/udp
+    #         #- 1900:1900/udp
+    #     links:
+    #         - dnsgen
+    #     restart: always
+    
+    # headphones:
+    #     image: linuxserver/headphones:latest
+    #     container_name: headphones
+    #     volumes:
+    #         - ./headphones:/config
+    #     volumes_from:
+    #         - datastore
+    #     environment:
+    #         - TZ=America/Los_Angeles
+    #         - EDGE=1
+    #         - DOMAIN_NAME=headphones.localhost
+    #         - VIRTUAL_HOST=headphones.localhost
+    #         - LETSENCRYPT_HOST=headphones.localhost
+    #         - LETSENCRYPT_EMAIL=youremail@localhost
+    #         - PUID=1000
+    #         - PGID=100
+    #     dns:
+    #         - 172.29.0.3
+    #         - 10.0.0.1
+    #     links:
+    #         - dnsgen
+    #         - sabnzbd
+    #     restart: always
